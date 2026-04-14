@@ -11,6 +11,8 @@ Chạy thử:
 
 import json
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from datetime import datetime
 from typing import TypedDict, Literal, Optional
 
@@ -48,6 +50,8 @@ class AgentState(TypedDict):
     supervisor_route: str               # Worker được chọn bởi supervisor
     latency_ms: Optional[int]           # Thời gian xử lý (ms)
     run_id: str                         # ID của run này
+    hitl_mode: str                      # "auto" (default) or "pause"
+    status: str                         # "running", "awaiting_human", "completed"
 
 
 def make_initial_state(task: str) -> AgentState:
@@ -70,6 +74,8 @@ def make_initial_state(task: str) -> AgentState:
         "supervisor_route": "",
         "latency_ms": None,
         "run_id": f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        "hitl_mode": "auto",
+        "status": "running",
     }
 
 
@@ -184,9 +190,10 @@ def human_review_node(state: AgentState) -> AgentState:
     print(f"   Reason: {state['route_reason']}")
     print(f"   Action: Auto-approving in lab mode (set hitl_triggered=True)\n")
 
-    # Sau khi human approve, route về retrieval để lấy evidence
-    state["supervisor_route"] = "retrieval_worker"
-    state["route_reason"] += " | human approved → retrieval"
+    # Sau khi human approve, nếu ban đầu route là human_review thì chuyển sang retrieval để tìm evidence
+    if state["supervisor_route"] == "human_review":
+        state["supervisor_route"] = "retrieval_worker"
+    state["route_reason"] += " | human approved"
 
     return state
 
@@ -234,16 +241,26 @@ def build_graph():
         import time
         start = time.time()
 
-        # Step 1: Supervisor decides route
-        state = supervisor_node(state)
+        if state.get("status") == "awaiting_human":
+            # Resume luồng sau khi Human Approve
+            state["status"] = "running"
+            state = human_review_node(state)
+        else:
+            # Step 1: Supervisor decides route
+            state = supervisor_node(state)
+
+            # Step 1.5: Trigger HITL nếu task có rủi ro cao
+            if state.get("risk_high"):
+                if state.get("hitl_mode") == "pause":
+                    state["status"] = "awaiting_human"
+                    return state
+                else:
+                    state = human_review_node(state)
 
         # Step 2: Route to appropriate worker
         route = route_decision(state)
 
-        if route == "human_review":
-            state = human_review_node(state)
-            state = retrieval_worker_node(state)
-        elif route == "policy_tool_worker":
+        if route == "policy_tool_worker":
             # Retrieval trước để có context → policy check
             state = retrieval_worker_node(state)
             state = policy_tool_worker_node(state)
@@ -254,6 +271,7 @@ def build_graph():
         state = synthesis_worker_node(state)
 
         state["latency_ms"] = int((time.time() - start) * 1000)
+        state["status"] = "completed"
         state["history"].append(f"[graph] completed in {state['latency_ms']}ms")
         return state
 

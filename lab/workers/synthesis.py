@@ -17,17 +17,19 @@ Gọi độc lập để test:
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 WORKER_NAME = "synthesis_worker"
 
-SYSTEM_PROMPT = """Bạn là trợ lý IT Helpdesk nội bộ của công ty.
+SYSTEM_PROMPT = """Bạn là trợ lý AI nội bộ thông minh của bộ phận IT Helpdesk. Nhiệm vụ của bạn là giải đáp các thắc mắc của nhân viên với thái độ chuyên nghiệp, thân thiện và chính xác.
 
-QUY TẮC CỐT LÕI:
-1. TRẢ LỜI DỰA TRÊN CONTEXT: Chỉ sử dụng thông tin từ "TÀI LIỆU THAM KHẢO" và "POLICY EXCEPTIONS" bên dưới.
-2. CITATION: Trích dẫn nguồn cho mọi thông tin quan trọng bằng cách ghi [tên_file] ngay sau câu đó. Ví dụ: "SLA cho ticket P1 là 4 giờ [sla_p1_2026.txt]."
-3. ABSTAIN: Nếu không tìm thấy câu trả lời trong context, hãy nói: "Tôi xin lỗi, thông tin này không có trong tài liệu nội bộ hiện tại."
-4. STRUCTURE: Trình bày rõ ràng, dùng bullet points nếu cần.
-5. POLICY PRIORITY: Nếu có "POLICY EXCEPTIONS", phải nêu rõ chúng trước khi đưa ra kết luận cuối cùng.
+🌟 QUY TẮC CỐT LÕI:
+1. TRẢ LỜI DỰA TRÊN CONTEXT: Thông tin trả lời phải bám sát phần "TÀI LIỆU THAM KHẢO" và "POLICY EXCEPTIONS" bên dưới. Tuyệt đối không bịa đặt.
+2. TRÍCH DẪN RÕ RÀNG (CITATION): Mọi số liệu, thời gian, hoặc quy trình phải kèm theo nguồn bằng ngoặc vuông. Ví dụ: "SLA cho xử lý ticket P1 là 4 giờ [sla-p1-2026.pdf]".
+3. ƯU TIÊN CHÍNH SÁCH NGOẠI LỆ: Nếu thông tin có phần "POLICY EXCEPTIONS" (Ngoại lệ chính sách), bạn phải phân tích phần đó đầu tiên trước khi đưa ra kết luận.
+4. TỪ CHỐI THÔNG MINH (ABSTAIN): Nếu không tìm thấy thông tin trong context, hãy xin lỗi nhẹ nhàng: "Rất tiếc, tôi chưa tìm thấy thông tin này trong tài liệu nội bộ hiện tại. Xin hãy liên hệ trực tiếp phòng IT để được hỗ trợ cụ thể nhé."
+5. TRÌNH BÀY ĐẸP MẮT: Sử dụng Markdown (in đậm, in nghiêng, bullet points) để bài nói mạch lạc, dễ lưu ý các điểm quan trọng.
 """
 
 
@@ -71,11 +73,11 @@ def _build_context(chunks: list, policy_result: dict) -> str:
 
     if chunks:
         parts.append("=== TÀI LIỆU THAM KHẢO ===")
-        for i, chunk in enumerate(chunks, 1):
+        for chunk in chunks:
             source = chunk.get("source", "unknown")
             text = chunk.get("text", "")
             score = chunk.get("score", 0)
-            parts.append(f"[{i}] Nguồn: {source} (relevance: {score:.2f})\n{text}")
+            parts.append(f"Nguồn: [{source}] (relevance: {score:.2f})\n{text}")
 
     if policy_result and policy_result.get("exceptions_found"):
         parts.append("\n=== POLICY EXCEPTIONS ===")

@@ -99,13 +99,17 @@ def analyze_policy(task: str, chunks: list, use_llm: bool = True) -> dict:
         })
 
     # Temporal scoping (Version detection)
-    policy_name = "refund_policy_v4"
+    # Determine which policy version applies (temporal scoping)
+    # Detect policy type từ source/task
+    if any(kw in task_lower for kw in ["access", "cấp quyền", "level"]):
+        policy_name = "access_control_sop"
+    elif "hoàn tiền" in task_lower or "refund" in task_lower:
+        policy_name = "refund_policy_v4"
+    else:
+        policy_name = "it_policy_general"
+        
     policy_version_note = ""
-    # Regex search for dates before Feb 2026
-    import re
-    date_patterns = [r"trước 01/02", r"trước tháng 2", r"2025", r"31/01/2026", r"30/01/2026"]
-    if any(re.search(p, task_lower) for p in date_patterns):
-        policy_name = "refund_policy_v3"
+    if "31/01" in task_lower or "30/01" in task_lower or "trước 01/02" in task_lower:
         policy_version_note = "Đơn hàng đặt trước 01/02/2026 áp dụng chính sách v3 (không có trong tài liệu hiện tại). Cần Senior Agent kiểm tra lại."
 
     # --- Step 2: LLM Refinement (optional/fallback) ---

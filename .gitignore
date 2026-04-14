@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+env.bak/
+venv.bak/
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# IDEs
+.idea/
+.vscode/
+
+# Ignore artifacts EXCEPT grading logs or important runs
+# The request explicitly said "(ko ignore logs, vì cần chấm điểm)"
+!lab/artifacts/
+!lab/logs/
+!logs/
+!artifacts/

@@ -20,9 +20,9 @@ Sử dụng:
     # Call a tool
     result = dispatch_tool("search_kb", {"query": "SLA P1", "top_k": 3})
 
-Sprint 3 TODO:
-    - Option Standard: Sử dụng file này as-is (mock class)
-    - Option Advanced: Implement HTTP server với FastAPI hoặc dùng `mcp` library
+Sprint 3 (COMPLETED):
+    - Standard Mock implementation with dispatch_tool interface.
+    - Integrated with retrieval_worker for search_kb.
 
 Chạy thử:
     python mcp_server.py
@@ -135,14 +135,10 @@ TOOL_SCHEMAS = {
 def tool_search_kb(query: str, top_k: int = 3) -> dict:
     """
     Tìm kiếm Knowledge Base bằng semantic search.
-
-    TODO Sprint 3: Kết nối với ChromaDB thực.
-    Hiện tại: Delegate sang retrieval worker.
+    Kết nối với ChromaDB thông qua retrieval_worker.
     """
     try:
         # Tái dùng retrieval logic từ workers/retrieval.py
-        import sys
-        sys.path.insert(0, os.path.dirname(__file__))
         from workers.retrieval import retrieve_dense
         chunks = retrieve_dense(query, top_k=top_k)
         sources = list({c["source"] for c in chunks})
@@ -337,12 +333,12 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # 1. Discover tools
-    print("\n📋 Available Tools:")
+    print("\nAvailable Tools:")
     for tool in list_tools():
-        print(f"  • {tool['name']}: {tool['description'][:60]}...")
+        print(f"  - {tool['name']}: {tool['description'][:60]}...")
 
     # 2. Test search_kb
-    print("\n🔍 Test: search_kb")
+    print("\nSearch Test: search_kb")
     result = dispatch_tool("search_kb", {"query": "SLA P1 resolution time", "top_k": 2})
     if result.get("chunks"):
         for c in result["chunks"]:
@@ -351,14 +347,14 @@ if __name__ == "__main__":
         print(f"  Result: {result}")
 
     # 3. Test get_ticket_info
-    print("\n🎫 Test: get_ticket_info")
+    print("\nTicket Test: get_ticket_info")
     ticket = dispatch_tool("get_ticket_info", {"ticket_id": "P1-LATEST"})
     print(f"  Ticket: {ticket.get('ticket_id')} | {ticket.get('priority')} | {ticket.get('status')}")
     if ticket.get("notifications_sent"):
         print(f"  Notifications: {ticket['notifications_sent']}")
 
     # 4. Test check_access_permission
-    print("\n🔐 Test: check_access_permission (Level 3, emergency)")
+    print("\nPerm Test: check_access_permission (Level 3, emergency)")
     perm = dispatch_tool("check_access_permission", {
         "access_level": 3,
         "requester_role": "contractor",
@@ -370,9 +366,8 @@ if __name__ == "__main__":
     print(f"  notes: {perm.get('notes')}")
 
     # 5. Test invalid tool
-    print("\n❌ Test: invalid tool")
+    print("\nInvalid Tool Test")
     err = dispatch_tool("nonexistent_tool", {})
     print(f"  Error: {err.get('error')}")
 
-    print("\n✅ MCP server test done.")
-    print("\nTODO Sprint 3: Implement HTTP server nếu muốn bonus +2.")
+    print("\nMCP server test done.")

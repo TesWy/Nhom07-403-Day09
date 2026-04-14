@@ -22,11 +22,18 @@ load_dotenv()
 
 WORKER_NAME = "synthesis_worker"
 
-SYSTEM_PROMPT = """Bạn là trợ lý AI nội bộ thông minh của bộ phận IT Helpdesk. Nhiệm vụ của bạn là giải đáp các thắc mắc của nhân viên với thái độ chuyên nghiệp, thân thiện và chính xác.
+SYSTEM_PROMPT = """Bạn là trợ lý AI chuyên môn IT Helpdesk cấp cao.
+Nhiệm vụ: Trả lời câu hỏi dựa TRÊN TÀI LIỆU ĐƯỢC CUNG CẤP ở dưới.
 
-🌟 QUY TẮC CỐT LÕI:
-1. TRẢ LỜI DỰA TRÊN CONTEXT: Thông tin trả lời phải bám sát phần "TÀI LIỆU THAM KHẢO" và "POLICY EXCEPTIONS" bên dưới. Tuyệt đối không bịa đặt.
-2. TRÍCH DẪN RÕ RÀNG (CITATION): Mọi số liệu, thời gian, hoặc quy trình phải kèm theo nguồn bằng ngoặc vuông. Ví dụ: "SLA cho xử lý ticket P1 là 4 giờ [sla-p1-2026.pdf]".
+Nguyên tắc bắt buộc:
+1. Trích dẫn nguồn BẰNG TÊN FILE: VD `[sla-p1-2026.pdf]`. Chỉ sử dụng tên file được cung cấp trong [Source].
+2. KHÔNG BAO GIỜ tự bịa thông tin. Nếu không có trong context, báo thẳng: "Tài liệu không cung cấp mã lỗi này / thông tin này".
+
+Hướng dẫn tư duy nâng cao (Advanced Reasoning):
+- KIỂM TRA HIỆU LỰC (Temporal Scoping): Chú ý đến "Effective Date" trong tài liệu. Nếu câu hỏi đề cập đến ngày tháng sự kiện xảy ra TRƯỚC ngày hiệu lực của tài liệu hiện có, BẠN PHẢI TỪ CHỐI TRẢ LỜI (VD: "Chính sách áp dụng là bản v3 nhưng tài liệu hiện tại chỉ có bản v4, vui lòng báo bộ phận liên quan"). Không tự động copy rập khuôn luật mới cho quá khứ.
+- TỔNG HỢP TOÀN DIỆN (Multi-Section Extraction): Khi được hỏi "kênh nào", "ai nhận", "bao nhiêu người", BẠN PHẢI ĐỌC HẾT CÁC PHẦN của tài liệu (cả quy trình lẫn phần cấu hình công cụ cuối văn bản) để liệt kê không sót bất cứ kênh nào (Slack, Email, PagerDuty, v.v.).
+- PHÂN ĐỊNH QUYỀN TRUY CẬP (Access Control Parsing): Không được trộn lẫn quy trình báo sự cố chung với quy trình cấp quyền. Nếu hỏi về quyền Level cụ thể, phải trả lời đúng các role (Line Manager, IT Admin, Security, Tech Lead) áp dụng ĐÚNG cho hạng mục Level đó, KHÔNG LẤY MÃ CẤP QUYỀN của Level 3 áp cho Level 2.
+
 3. ƯU TIÊN CHÍNH SÁCH NGOẠI LỆ: Nếu thông tin có phần "POLICY EXCEPTIONS" (Ngoại lệ chính sách), bạn phải phân tích phần đó đầu tiên trước khi đưa ra kết luận.
 4. TỪ CHỐI THÔNG MINH (ABSTAIN): Nếu không tìm thấy thông tin trong context, hãy xin lỗi nhẹ nhàng: "Rất tiếc, tôi chưa tìm thấy thông tin này trong tài liệu nội bộ hiện tại. Xin hãy liên hệ trực tiếp phòng IT để được hỗ trợ cụ thể nhé."
 5. TRÌNH BÀY ĐẸP MẮT: Sử dụng Markdown (in đậm, in nghiêng, bullet points) để bài nói mạch lạc, dễ lưu ý các điểm quan trọng.
@@ -67,27 +74,37 @@ def _call_llm(messages: list) -> str:
     return "[SYNTHESIS ERROR] Không thể gọi LLM. Kiểm tra API key trong .env."
 
 
-def _build_context(chunks: list, policy_result: dict) -> str:
-    """Xây dựng context string từ chunks và policy result."""
+def _build_context(chunks: list, policy_result: dict, mcp_tools_used: list = None) -> str:
+    """Xây dựng context string từ chunks, policy result và mcp_tools_used."""
     parts = []
 
+    if mcp_tools_used:
+        parts.append("=== MCP TOOLS OUTPUT (LIVE DATA) ===")
+        for call in mcp_tools_used:
+            tool = call.get("tool", "")
+            out = call.get("output", {})
+            parts.append(f"Tool {tool} returned: {out}")
+
     if chunks:
-        parts.append("=== TÀI LIỆU THAM KHẢO ===")
+        parts.append("\n=== TÀI LIỆU THAM KHẢO ===")
         for chunk in chunks:
             source = chunk.get("source", "unknown")
             text = chunk.get("text", "")
             score = chunk.get("score", 0)
             parts.append(f"Nguồn: [{source}] (relevance: {score:.2f})\n{text}")
 
-    if policy_result and policy_result.get("exceptions_found"):
-        parts.append("\n=== POLICY EXCEPTIONS ===")
-        for ex in policy_result["exceptions_found"]:
-            parts.append(f"- {ex.get('rule', '')}")
+    if policy_result:
+        if policy_result.get("exceptions_found"):
+            parts.append("\n=== POLICY EXCEPTIONS ===")
+            for ex in policy_result["exceptions_found"]:
+                parts.append(f"- {ex.get('rule', '')}")
+        if policy_result.get("policy_version_note"):
+            parts.append(f"\n=== TEMPORAL SCOPING NOTE ===\n{policy_result.get('policy_version_note')}")
 
     if not parts:
         return "(Không có context)"
 
-    return "\n\n".join(parts)
+    return "\n".join(parts)
 
 
 def _estimate_confidence(chunks: list, answer: str, policy_result: dict) -> float:
@@ -118,14 +135,14 @@ def _estimate_confidence(chunks: list, answer: str, policy_result: dict) -> floa
     return round(max(0.1, confidence), 2)
 
 
-def synthesize(task: str, chunks: list, policy_result: dict) -> dict:
+def synthesize(task: str, chunks: list, policy_result: dict, mcp_tools_used: list = None) -> dict:
     """
     Tổng hợp câu trả lời từ chunks và policy context.
 
     Returns:
         {"answer": str, "sources": list, "confidence": float}
     """
-    context = _build_context(chunks, policy_result)
+    context = _build_context(chunks, policy_result, mcp_tools_used)
 
     # Build messages
     messages = [
@@ -158,6 +175,7 @@ def run(state: dict) -> dict:
     task = state.get("task", "")
     chunks = state.get("retrieved_chunks", [])
     policy_result = state.get("policy_result", {})
+    mcp_tools_used = state.get("mcp_tools_used", [])
 
     state.setdefault("workers_called", [])
     state.setdefault("history", [])
@@ -175,7 +193,7 @@ def run(state: dict) -> dict:
     }
 
     try:
-        result = synthesize(task, chunks, policy_result)
+        result = synthesize(task, chunks, policy_result, mcp_tools_used)
         state["final_answer"] = result["answer"]
         state["sources"] = result["sources"]
         state["confidence"] = result["confidence"]

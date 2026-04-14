@@ -25,7 +25,7 @@ import sys
 # ─────────────────────────────────────────────
 
 WORKER_NAME = "retrieval_worker"
-DEFAULT_TOP_K = 3
+DEFAULT_TOP_K = 5
 
 
 def _get_embedding_fn():

@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-04-14T16:31:45.173781",
+  "day08_single_agent": {
+    "total_questions": 15,
+    "avg_confidence": 0.0,
+    "avg_latency_ms": 2800,
+    "abstain_rate": "1/10 (10%)",
+    "multi_hop_accuracy": "Thấp"
+  },
+  "day09_multi_agent": {
+    "total_traces": 30,
+    "routing_distribution": {
+      "retrieval_worker": "16/30 (53%)",
+      "policy_tool_worker": "14/30 (47%)"
+    },
+    "worker_call_distribution": {
+      "retrieval_worker": "30/30 (100%)",
+      "synthesis_worker": "30/30 (100%)",
+      "policy_tool_worker": "14/30 (47%)",
+      "human_review": "6/30 (20%)"
+    },
+    "avg_confidence": 0.504,
+    "avg_latency_ms": 6051,
+    "mcp_usage_rate": "4/30 (13%)",
+    "hitl_rate": "6/30 (20%)",
+    "top_sources": [
+      [
+        "it/access-control-sop.md",
+        14
+      ],
+      [
+        "policy/refund-v4.pdf",
+        10
+      ],
+      [
+        "support/sla-p1-2026.pdf",
+        10
+      ],
+      [
+        "hr/leave-policy-2026.pdf",
+        6
+      ],
+      [
+        "support/helpdesk-faq.md",
+        6
+      ]
+    ]
+  },
+  "analysis": {
+    "routing_visibility": "Day 09 có route_reason cho từng câu, nên dễ debug routing hơn.",
+    "latency_delta": "Multi-agent Day 09 có latency 6051ms so với ~2800ms của Day 08.",
+    "accuracy_delta": "Day 09 xử lý tốt multi-hop và alias thông qua routing/worker chuyên biệt, nhỉnh hơn Day 08 variant (4.78/5).",
+    "debuggability": "Multi-agent test được từng worker độc lập; single-agent khó tách lỗi theo từng bước.",
+    "mcp_benefit": "Day 09 mở rộng capability qua MCP mà không cần sửa toàn bộ core orchestration."
+  }
+}

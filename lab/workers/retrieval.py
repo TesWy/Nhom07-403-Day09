@@ -85,15 +85,9 @@ def retrieve_dense(query: str, top_k: int = DEFAULT_TOP_K) -> list:
     """
     Dense retrieval: embed query → query ChromaDB → trả về top_k chunks.
 
-    TODO Sprint 2: Implement phần này.
-    - Dùng _get_embedding_fn() để embed query
-    - Query collection với n_results=top_k
-    - Format result thành list of dict
-
     Returns:
         list of {"text": str, "source": str, "score": float, "metadata": dict}
     """
-    # TODO: Implement dense retrieval
     embed = _get_embedding_fn()
     query_embedding = embed(query)
 
@@ -106,22 +100,22 @@ def retrieve_dense(query: str, top_k: int = DEFAULT_TOP_K) -> list:
         )
 
         chunks = []
-        for i, (doc, dist, meta) in enumerate(zip(
-            results["documents"][0],
-            results["distances"][0],
-            results["metadatas"][0]
-        )):
-            chunks.append({
-                "text": doc,
-                "source": meta.get("source", "unknown"),
-                "score": round(1 - dist, 4),  # cosine similarity
-                "metadata": meta,
-            })
+        if results["documents"]:
+            for i in range(len(results["documents"][0])):
+                doc = results["documents"][0][i]
+                dist = results["distances"][0][i]
+                meta = results["metadatas"][0][i]
+                
+                chunks.append({
+                    "text": doc,
+                    "source": meta.get("source", "unknown"),
+                    "score": round(1 - dist, 4),  # cosine similarity
+                    "metadata": meta,
+                })
         return chunks
 
     except Exception as e:
         print(f"⚠️  ChromaDB query failed: {e}")
-        # Fallback: return empty (abstain)
         return []
 
 

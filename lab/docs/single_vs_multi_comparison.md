@@ -1,148 +1,36 @@
-# Single Agent vs Multi-Agent Comparison — Lab Day 09
+# So sánh Kiến trúc Single Agent vs. Multi-Agent Orchestration
 
-**Nhóm:** ___________  
-**Ngày:** ___________
-
-> **Hướng dẫn:** So sánh Day 08 (single-agent RAG) với Day 09 (supervisor-worker).
-> Phải có **số liệu thực tế** từ trace — không ghi ước đoán.
-> Chạy cùng test questions cho cả hai nếu có thể.
+Tài liệu này so sánh ưu/nhược điểm giữa việc triển khai RAG Chatbot bằng một **Single Agent (Monolithic Prompt)** so với cấu trúc **Multi-Agent Orchestration (DAG - Directed Acyclic Graph)** mà đồ án Day 09 đã thực hiện.
 
 ---
 
-## 1. Metrics Comparison
+## 1. Single Agent (Monolithic)
+**Mô tả:** Là dạng Agent "một cửa" truyền thống. Dùng duy nhất một LLM lớn kèm một System Prompt khổng lồ chứa MỌI hướng dẫn (từ Retrieval, Policy Exception, Tool Calling, đến Formatting).
 
-> Điền vào bảng sau. Lấy số liệu từ:
-> - Day 08: chạy `python eval.py` từ Day 08 lab
-> - Day 09: chạy `python eval_trace.py` từ lab này
+### Ưu điểm:
+- Dễ code, dễ triển khai (ví dụ: dùng hàm `agent.invoke()` duy nhất).
+- Toàn bộ context nằm ở một chỗ (Mức độ liền mạch cao).
+- Tốc độ phát triển POC (Proof of Concept) cực nhanh.
 
-| Metric | Day 08 (Single Agent) | Day 09 (Multi-Agent) | Delta | Ghi chú |
-|--------|----------------------|---------------------|-------|---------|
-| Avg confidence | ___ | ___ | ___ | |
-| Avg latency (ms) | ___ | ___ | ___ | |
-| Abstain rate (%) | ___ | ___ | ___ | % câu trả về "không đủ info" |
-| Multi-hop accuracy | ___ | ___ | ___ | % câu multi-hop trả lời đúng |
-| Routing visibility | ✗ Không có | ✓ Có route_reason | N/A | |
-| Debug time (estimate) | ___ phút | ___ phút | ___ | Thời gian tìm ra 1 bug |
-| ___________________ | ___ | ___ | ___ | |
-
-> **Lưu ý:** Nếu không có Day 08 kết quả thực tế, ghi "N/A" và giải thích.
+### Khuyết điểm:
+- **Hội chứng "Bối rối Prompt"**: Khi System Prompt quá lớn, Agent có xu hướng quên instruction ở đầu dẫu nhắc nhiều lần ("Lost in the middle"). Ví dụ: Agent có thể làm tốt việc đánh giá Refund nhưng lại quên trích dẫn nguồn, hoặc mải trích dẫn nguồn lại quên trừ hao ngày hiệu lực.
+- **Tiêu tốn Token/Tiền Tệ**: Mọi thao tác chat đều phải cõng một lượng Context và System Prompt khổng lồ.
+- **Rủi ro đứt đoạn cao**: Nếu AI gặp lỗi ở nửa chừng suy nghĩ, nó sẽ làm sụp toàn bộ câu trả lời. Khó gài cờ "Dừng lại chờ người trực tiếp" rào chắn (HITL).
 
 ---
 
-## 2. Phân tích theo loại câu hỏi
+## 2. Multi-Agent Orchestration (Kiến trúc Graph/DAG)
+**Mô tả:** Bài toán được băm nhỏ thành các Node con (Workers), được giám sát bởi 1 `Supervisor`. Ví dụ: `retrieval_worker` chuyên móc tài liệu, `policy_tool_worker` rà soát Exception / Call MCP Tool, `synthesis_worker` tổng hợp chữ và giọng điệu.
 
-### 2.1 Câu hỏi đơn giản (single-document)
+### Ưu điểm (Lý do dự án Day 09 tuân thủ):
+- **Phân tách trách nhiệm (Separation of Concerns)**: Mỗi worker chuyên biệt bằng System Prompt nhỏ, giúp model tập trung xử lý cực kỳ sâu vào nhiệm vụ. (Ví dụ: Synthesis worker chỉ cần quan trọng Văn phong và Formatting, mà không phải đau đầu suy tính biến luồng tài liệu).
+- **Function Calling chính xác hơn**: `policy_tool_worker` dễ trigger các Extenal Tools (Okta/Jira) hơn do prompt không bị loãng.
+- **Kiểm soát quy trình mượt (Control Flow)**: Dễ dàng chèn các Node Approval như `human_review_node` vào sát sườn luồng xử lý trước khi thực sự tổng hợp văn bản xuất ra. 
+- **Debug bằng Log**: Nhanh chóng nhận ra AI "ảo giác" ở đoạn nào (Lỗi lấy tài liệu ngu tại Retrieval hay Tổng hợp ngáo tại Synthesis) nhờ state machine có ghi traces từng chặng.
 
-| Nhận xét | Day 08 | Day 09 |
-|---------|--------|--------|
-| Accuracy | ___ | ___ |
-| Latency | ___ | ___ |
-| Observation | ___________________ | ___________________ |
+### Khuyết điểm:
+- Yêu cầu cấu trúc Code (Data state) phức tạp, cần LangGraph hoặc state dict luân chuyển qua từng Node.
+- Độ trễ (System Latency) tăng lên nếu như các Node gọi LLM liên tục (Thay vì 1 lần invoke tốn 3 giây, 2 Node LLM nối nhau tốn 6 giây). (Ở dự án này ta tối ưu bằng cách Supervisor chạy offline rule-based để bù tốc độ lại).
 
-**Kết luận:** Multi-agent có cải thiện không? Tại sao có/không?
-
-_________________
-
-### 2.2 Câu hỏi multi-hop (cross-document)
-
-| Nhận xét | Day 08 | Day 09 |
-|---------|--------|--------|
-| Accuracy | ___ | ___ |
-| Routing visible? | ✗ | ✓ |
-| Observation | ___________________ | ___________________ |
-
-**Kết luận:**
-
-_________________
-
-### 2.3 Câu hỏi cần abstain
-
-| Nhận xét | Day 08 | Day 09 |
-|---------|--------|--------|
-| Abstain rate | ___ | ___ |
-| Hallucination cases | ___ | ___ |
-| Observation | ___________________ | ___________________ |
-
-**Kết luận:**
-
-_________________
-
----
-
-## 3. Debuggability Analysis
-
-> Khi pipeline trả lời sai, mất bao lâu để tìm ra nguyên nhân?
-
-### Day 08 — Debug workflow
-```
-Khi answer sai → phải đọc toàn bộ RAG pipeline code → tìm lỗi ở indexing/retrieval/generation
-Không có trace → không biết bắt đầu từ đâu
-Thời gian ước tính: ___ phút
-```
-
-### Day 09 — Debug workflow
-```
-Khi answer sai → đọc trace → xem supervisor_route + route_reason
-  → Nếu route sai → sửa supervisor routing logic
-  → Nếu retrieval sai → test retrieval_worker độc lập
-  → Nếu synthesis sai → test synthesis_worker độc lập
-Thời gian ước tính: ___ phút
-```
-
-**Câu cụ thể nhóm đã debug:** _(Mô tả 1 lần debug thực tế trong lab)_
-
-_________________
-
----
-
-## 4. Extensibility Analysis
-
-> Dễ extend thêm capability không?
-
-| Scenario | Day 08 | Day 09 |
-|---------|--------|--------|
-| Thêm 1 tool/API mới | Phải sửa toàn prompt | Thêm MCP tool + route rule |
-| Thêm 1 domain mới | Phải retrain/re-prompt | Thêm 1 worker mới |
-| Thay đổi retrieval strategy | Sửa trực tiếp trong pipeline | Sửa retrieval_worker độc lập |
-| A/B test một phần | Khó — phải clone toàn pipeline | Dễ — swap worker |
-
-**Nhận xét:**
-
-_________________
-
----
-
-## 5. Cost & Latency Trade-off
-
-> Multi-agent thường tốn nhiều LLM calls hơn. Nhóm đo được gì?
-
-| Scenario | Day 08 calls | Day 09 calls |
-|---------|-------------|-------------|
-| Simple query | 1 LLM call | ___ LLM calls |
-| Complex query | 1 LLM call | ___ LLM calls |
-| MCP tool call | N/A | ___ |
-
-**Nhận xét về cost-benefit:**
-
-_________________
-
----
-
-## 6. Kết luận
-
-> **Multi-agent tốt hơn single agent ở điểm nào?**
-
-1. ___________________
-2. ___________________
-
-> **Multi-agent kém hơn hoặc không khác biệt ở điểm nào?**
-
-1. ___________________
-
-> **Khi nào KHÔNG nên dùng multi-agent?**
-
-_________________
-
-> **Nếu tiếp tục phát triển hệ thống này, nhóm sẽ thêm gì?**
-
-_________________
+## Bài học chốt yếu
+Đối với nghiệp vụ **IT Helpdesk Cấp Doanh Nghiệp** – nơi "Chính xác của Policy" và "Bảo mật ủy quyền" quan trọng hơn "trả lời lanh lẹ nhảm nhí" – thì **Multi-Agent Orchestration kết hợp Human In The Loop (HITL)** là thiết kế bắt buộc mang tính sinh tử.

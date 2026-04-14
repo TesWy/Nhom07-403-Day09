@@ -1,0 +1,75 @@
+{
+    "P1-LATEST": {
+        "ticket_id": "IT-9847",
+        "priority": "P1",
+        "title": "API Gateway down — toàn bộ người dùng không đăng nhập được",
+        "status": "in_progress",
+        "assignee": "nguyen.van.a@company.internal",
+        "created_at": "2026-04-13T22:47:00",
+        "sla_deadline": "2026-04-14T02:47:00",
+        "escalated": true,
+        "escalated_to": "senior_engineer_team",
+        "notifications_sent": [
+            "slack:#incident-p1",
+            "email:incident@company.internal",
+            "pagerduty:oncall"
+        ]
+    },
+    "IT-9847": {
+        "ticket_id": "IT-9847",
+        "priority": "P1",
+        "title": "API Gateway down — toàn bộ người dùng không đăng nhập được",
+        "status": "in_progress",
+        "assignee": "nguyen.van.a@company.internal",
+        "created_at": "2026-04-13T22:47:00",
+        "sla_deadline": "2026-04-14T02:47:00",
+        "escalated": true,
+        "escalated_to": "senior_engineer_team",
+        "notifications_sent": [
+            "slack:#incident-p1",
+            "email:incident@company.internal",
+            "pagerduty:oncall"
+        ]
+    },
+    "IT-2AM": {
+        "ticket_id": "IT-2AM",
+        "priority": "P1",
+        "title": "Database cluster unreachable — contractor needs emergency Level 2 access",
+        "status": "open",
+        "assignee": "oncall-lead@company.internal",
+        "created_at": "2026-04-14T02:00:00",
+        "sla_deadline": "2026-04-14T02:20:00",
+        "escalated": false,
+        "notifications_sent": [
+            "pagerduty:oncall",
+            "slack:#incident-p1"
+        ],
+        "notes": "Contractor cần cấp quyền Level 2 tạm thời để xử lý khẩn cấp"
+    },
+    "IT-1234": {
+        "ticket_id": "IT-1234",
+        "priority": "P2",
+        "title": "Feature login chậm cho một số user",
+        "status": "open",
+        "assignee": null,
+        "created_at": "2026-04-13T09:15:00",
+        "sla_deadline": "2026-04-14T09:15:00",
+        "escalated": false,
+        "notifications_sent": []
+    },
+    "IT-P1-NORESPONSE": {
+        "ticket_id": "IT-P1-NORESPONSE",
+        "priority": "P1",
+        "title": "P1 unacknowledged — auto escalation pending",
+        "status": "open",
+        "assignee": null,
+        "created_at": "2026-04-14T10:00:00",
+        "sla_deadline": "2026-04-14T10:20:00",
+        "escalated": false,
+        "no_response_minutes": 10,
+        "notifications_sent": [
+            "pagerduty:oncall"
+        ],
+        "notes": "Nếu không phản hồi sau 10 phút, hệ thống sẽ auto escalate"
+    }
+}

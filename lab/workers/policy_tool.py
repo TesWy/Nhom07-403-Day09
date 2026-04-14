@@ -39,7 +39,7 @@ def _call_mcp_tool(tool_name: str, tool_input: dict) -> dict:
 
     try:
         # TODO Sprint 3: Thay bằng real MCP client nếu dùng HTTP server
-        from mcp_server import dispatch_tool
+        from mcp_dispatch import dispatch_tool
         result = dispatch_tool(tool_name, tool_input)
         return {
             "tool": tool_name,

@@ -83,48 +83,68 @@ def supervisor_node(state: AgentState) -> AgentState:
     1. Route sang worker nào
     2. Có cần MCP tool không
     3. Có risk cao cần HITL không
-
-    TODO Sprint 1: Implement routing logic dựa vào task keywords.
     """
+    import re
+
     task = state["task"].lower()
     state["history"].append(f"[supervisor] received task: {state['task'][:80]}")
 
-    # --- TODO: Implement routing logic ---
-    # Gợi ý:
-    # - "hoàn tiền", "refund", "flash sale", "license" → policy_tool_worker
-    # - "cấp quyền", "access level", "level 3", "emergency" → policy_tool_worker
-    # - "P1", "escalation", "sla", "ticket" → retrieval_worker
-    # - mã lỗi không rõ (ERR-XXX), không đủ context → human_review
-    # - còn lại → retrieval_worker
+    # Keyword banks
+    policy_keywords = [
+        "hoàn tiền", "refund", "flash sale", "license", "license key",
+        "cấp quyền", "access", "level 3", "admin access", "quyền truy cập",
+        "subscription", "kỹ thuật số", "tạm thời", "quy trình tạm thời",
+    ]
+    retrieval_keywords = [
+        "p1", "sla", "escalation", "ticket", "sự cố", "incident",
+        "thông báo", "ai nhận", "ai phê duyệt",
+    ]
+    risk_keywords = ["emergency", "khẩn cấp", "2am", "ngoài giờ", "contractor"]
 
-    route = "retrieval_worker"         # TODO: thay bằng logic thực
-    route_reason = "default route"    # TODO: thay bằng lý do thực
-    needs_tool = False
-    risk_high = False
+    # Mã lỗi không rõ: ERR-xxx
+    has_unknown_err = bool(re.search(r'\berr-[a-z0-9]+\b', task))
 
-    # Ví dụ routing cơ bản — nhóm phát triển thêm:
-    policy_keywords = ["hoàn tiền", "refund", "flash sale", "license", "cấp quyền", "access", "level 3"]
-    risk_keywords = ["emergency", "khẩn cấp", "2am", "không rõ", "err-"]
+    # Risk flag
+    risk_high = any(kw in task for kw in risk_keywords)
 
-    if any(kw in task for kw in policy_keywords):
+    # Routing logic (thứ tự ưu tiên)
+    # 1. ERR-xxx không rõ → human_review
+    if has_unknown_err and not any(kw in task for kw in retrieval_keywords + policy_keywords):
+        route = "human_review"
+        route_reason = "unknown error code (ERR-xxx) without sufficient context"
+        risk_high = True
+        needs_tool = False
+
+    # 2. Policy / access / refund → policy_tool_worker
+    elif any(kw in task for kw in policy_keywords):
         route = "policy_tool_worker"
-        route_reason = f"task contains policy/access keyword"
+        matched = [kw for kw in policy_keywords if kw in task]
+        route_reason = f"task contains policy/access keyword: {matched}"
         needs_tool = True
 
-    if any(kw in task for kw in risk_keywords):
-        risk_high = True
-        route_reason += " | risk_high flagged"
+    # 3. SLA / ticket / escalation → retrieval_worker
+    elif any(kw in task for kw in retrieval_keywords):
+        route = "retrieval_worker"
+        matched = [kw for kw in retrieval_keywords if kw in task]
+        route_reason = f"task contains SLA/incident keyword: {matched}"
+        needs_tool = False
 
-    # Human review override
-    if risk_high and "err-" in task:
-        route = "human_review"
-        route_reason = "unknown error code + risk_high → human review"
+    # 4. Default → retrieval_worker
+    else:
+        route = "retrieval_worker"
+        route_reason = "default route — general knowledge query"
+        needs_tool = False
+
+    if risk_high:
+        route_reason += " | risk_high=True"
 
     state["supervisor_route"] = route
     state["route_reason"] = route_reason
     state["needs_tool"] = needs_tool
     state["risk_high"] = risk_high
-    state["history"].append(f"[supervisor] route={route} reason={route_reason}")
+    state["history"].append(
+        f"[supervisor] route={route} | risk_high={risk_high} | reason={route_reason}"
+    )
 
     return state
 
@@ -256,15 +276,12 @@ def build_graph():
 
         if route == "human_review":
             state = human_review_node(state)
-            # After human approval, continue with retrieval
             state = retrieval_worker_node(state)
         elif route == "policy_tool_worker":
+            # Retrieval trước để có context → policy check
+            state = retrieval_worker_node(state)
             state = policy_tool_worker_node(state)
-            # Policy worker may need retrieval context first
-            if not state["retrieved_chunks"]:
-                state = retrieval_worker_node(state)
         else:
-            # Default: retrieval_worker
             state = retrieval_worker_node(state)
 
         # Step 3: Always synthesize
@@ -313,28 +330,36 @@ def save_trace(state: AgentState, output_dir: str = "./artifacts/traces") -> str
 # ─────────────────────────────────────────────
 
 if __name__ == "__main__":
+    import sys
+    sys.stdout.reconfigure(encoding="utf-8")
+
     print("=" * 60)
-    print("Day 09 Lab — Supervisor-Worker Graph")
+    print("Day 09 Lab — Sprint 1: Supervisor-Worker Graph")
     print("=" * 60)
 
     test_queries = [
-        "SLA xử lý ticket P1 là bao lâu?",
-        "Khách hàng Flash Sale yêu cầu hoàn tiền vì sản phẩm lỗi — được không?",
-        "Cần cấp quyền Level 3 để khắc phục P1 khẩn cấp. Quy trình là gì?",
+        # retrieval path
+        "SLA xu ly ticket P1 la bao lau?",
+        "Ticket P1 luc 2am — escalation xay ra the nao va ai nhan thong bao?",
+        # policy path
+        "Khach hang Flash Sale yeu cau hoan tien vi san pham loi — duoc khong?",
+        "Contractor can Admin Access de sua P1 khan cap — quy trinh tam thoi la gi?",
+        # human_review path
+        "Loi ERR-5xx khong ro nguyen nhan.",
+        # default
+        "Chinh sach nghi phep cua nhan vien la gi?",
     ]
 
-    for query in test_queries:
-        print(f"\n▶ Query: {query}")
+    for i, query in enumerate(test_queries, 1):
+        print(f"\n[{i}] Query: {query}")
         result = run_graph(query)
-        print(f"  Route   : {result['supervisor_route']}")
-        print(f"  Reason  : {result['route_reason']}")
-        print(f"  Workers : {result['workers_called']}")
-        print(f"  Answer  : {result['final_answer'][:100]}...")
-        print(f"  Confidence: {result['confidence']}")
-        print(f"  Latency : {result['latency_ms']}ms")
-
-        # Lưu trace
+        print(f"  Route     : {result['supervisor_route']}")
+        print(f"  Reason    : {result['route_reason']}")
+        print(f"  risk_high : {result['risk_high']}")
+        print(f"  Workers   : {result['workers_called']}")
+        print(f"  Answer    : {result['final_answer']}")
+        print(f"  Latency   : {result['latency_ms']}ms")
         trace_file = save_trace(result)
-        print(f"  Trace saved → {trace_file}")
+        print(f"  Trace     : {trace_file}")
 
-    print("\n✅ graph.py test complete. Implement TODO sections in Sprint 1 & 2.")
+    print("\n[OK] Sprint 1 complete — routing logic verified.")

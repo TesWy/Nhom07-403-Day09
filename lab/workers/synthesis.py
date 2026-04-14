@@ -73,11 +73,11 @@ def _build_context(chunks: list, policy_result: dict) -> str:
 
     if chunks:
         parts.append("=== TÀI LIỆU THAM KHẢO ===")
-        for i, chunk in enumerate(chunks, 1):
+        for chunk in chunks:
             source = chunk.get("source", "unknown")
             text = chunk.get("text", "")
             score = chunk.get("score", 0)
-            parts.append(f"[{i}] Nguồn: {source} (relevance: {score:.2f})\n{text}")
+            parts.append(f"Nguồn: [{source}] (relevance: {score:.2f})\n{text}")
 
     if policy_result and policy_result.get("exceptions_found"):
         parts.append("\n=== POLICY EXCEPTIONS ===")
